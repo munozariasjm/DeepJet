@@ -136,9 +136,9 @@ for inputfile in inputdatafiles:
     
     predicted = test_loop(gen.feedNumpyData(), model, nbatches=gen.getNBatches(), pbar = pbar)
     
-    x = td.transferFeatureListToNumpy()
-    w = td.transferWeightListToNumpy()
-    y = td.transferTruthListToNumpy()
+    x = td.transferFeatureListToNumpy(args.pad_rowsplits)
+    w = td.transferWeightListToNumpy(args.pad_rowsplits)
+    y = td.transferTruthListToNumpy(args.pad_rowsplits)
 
     td.clear()
     gen.clear()
