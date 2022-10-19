@@ -11,7 +11,7 @@ def uproot_root2array(fname, treename, stop=None, branches=None):
     dtypes = np.dtype( [(b, np.dtype("O")) for b in branches] )
     if isinstance(fname, list):
         fname = fname[0]
-    tree = u3.open(fname)[treename]
+    tree = u.open(fname)[treename]
 
     print ("0",branches[0], fname)
 
@@ -26,7 +26,7 @@ def uproot_root2array(fname, treename, stop=None, branches=None):
 def uproot_tree_to_numpy(fname, inbranches_listlist, nMaxlist, nevents, treename="deepntuplizer/tree", stop=None, branches=None, flat=True):
     
     #open the root file, tree and get the branches list wanted for building the array
-    tree  = u3.open(fname)[treename]
+    tree  = u.open(fname)[treename]
     branches = [tree[branch_name].array() for branch_name in inbranches_listlist]
         
     #Initialize the output_array with the correct dimension and 0s everywhere. We will fill the correct 
@@ -159,27 +159,27 @@ class TrainData_ParT(TrainData):
                              'Cpfcan_BtagPf_trackSip3dVal',
                              'Cpfcan_BtagPf_trackSip3dSig',
                              'Cpfcan_BtagPf_trackJetDistVal',
-                             'Cpfcan_pt', 'Cpfcan_eta', 'Cpfcan_phi',
+                             'Cpfcan_ptrel', #'Cpfcan_eta', 'Cpfcan_phi',
                              'Cpfcan_drminsv',
                              #'Cpfcan_distminsv',
                              'Cpfcan_VTX_ass',
                              'Cpfcan_puppiw',
                              'Cpfcan_chi2',
-                             'Cpfcan_quality',
-                             'Cpfcan_nhitpixelBarrelLayer1', 'Cpfcan_nhitpixelBarrelLayer2', 'Cpfcan_nhitpixelBarrelLayer3', 'Cpfcan_nhitpixelBarrelLayer4',
-                             'Cpfcan_nhitpixelEndcapLayer1', 'Cpfcan_nhitpixelEndcapLayer2', 'Cpfcan_numberOfValidHits', 'Cpfcan_numberOfValidPixelHits',
-                             'Cpfcan_numberOfValidStripHits', 'Cpfcan_numberOfValidStripTIBHits', 'Cpfcan_numberOfValidStripTIDHits', 'Cpfcan_numberOfValidStripTOBHits',
-                             'Cpfcan_numberOfValidStripTECHits']
+                             'Cpfcan_quality']
+                             #'Cpfcan_nhitpixelBarrelLayer1', 'Cpfcan_nhitpixelBarrelLayer2', 'Cpfcan_nhitpixelBarrelLayer3', 'Cpfcan_nhitpixelBarrelLayer4',
+                             #'Cpfcan_nhitpixelEndcapLayer1', 'Cpfcan_nhitpixelEndcapLayer2', 'Cpfcan_numberOfValidHits', 'Cpfcan_numberOfValidPixelHits',
+                             #'Cpfcan_numberOfValidStripHits', 'Cpfcan_numberOfValidStripTIBHits', 'Cpfcan_numberOfValidStripTIDHits', 'Cpfcan_numberOfValidStripTOBHits',
+                             #'Cpfcan_numberOfValidStripTECHits']
 
         self.n_cpf = 25
 
-        self.npf_branches = ['Npfcan_pt', 'Npfcan_eta', 'Npfcan_phi', 'Npfcan_deltaR','Npfcan_isGamma','Npfcan_HadFrac','Npfcan_drminsv','Npfcan_puppiw']
+        self.npf_branches = ['Npfcan_ptrel', 'Npfcan_etarel', 'Npfcan_phirel', 'Npfcan_deltaR','Npfcan_isGamma','Npfcan_HadFrac','Npfcan_drminsv','Npfcan_puppiw']
         self.n_npf = 25
 
         self.vtx_branches = ['sv_pt','sv_deltaR',
                              'sv_mass',
-                             'sv_eta',
-                             'sv_phi',
+                             'sv_etarel',
+                             'sv_phirel',
                              'sv_ntracks',
                              'sv_chi2',
                              'sv_normchi2',
@@ -194,16 +194,23 @@ class TrainData_ParT(TrainData):
         self.n_vtx = 5
         
         self.cpf_pts_branches = ['Cpfcan_pt','Cpfcan_eta',
-                                 'Cpfcan_phi', 'Cpfcan_e',
-                                 'Cpfcan_nhitpixelBarrelLayer1', 'Cpfcan_nhitpixelBarrelLayer2',
-                                 'Cpfcan_nhitpixelEndcapLayer1', 'Cpfcan_nhitpixelEndcapLayer2',
-                                 'Cpfcan_numberOfValidHits', 'Cpfcan_numberOfValidPixelHits']
+                                 'Cpfcan_phi', 'Cpfcan_e']
+                                 #'Cpfcan_nhitpixelBarrelLayer1', 'Cpfcan_nhitpixelBarrelLayer2',
+                                 #'Cpfcan_nhitpixelEndcapLayer1', 'Cpfcan_nhitpixelEndcapLayer2',
+                                 #'Cpfcan_numberOfValidHits', 'Cpfcan_numberOfValidPixelHits']
         
         self.npf_pts_branches = ['Npfcan_pt','Npfcan_eta', 
                                  'Npfcan_phi', 'Npfcan_e']
         
         self.vtx_pts_branches = ['sv_pt','sv_eta',
                                  'sv_phi','sv_e']
+
+#        self.pair_branches = ['pairwise_dist2',
+ #                             'pairwise_pca_distance_tanh10','pairwise_pca_significance_tanh0p07',
+  #                            'pairwise_dotprod1','pairwise_dotprod2',
+   #                           'pairwise_pca_dist1_tanh','pairwise_pca_dist2_tanh',
+    #                          'pairwise_pca_jetAxis_dist_tanh5','pairwise_pca_jetAxis_dotprod']
+     #   self.n_pair = 325
 
         self.reduced_truth = ['isB','isBB','isLeptonicB','isC','isUDS','isG']
         #self.reduced_truth = ['isB','isC','isUDS','isG']
@@ -270,27 +277,27 @@ class TrainData_ParT(TrainData):
         swall=stopwatch()
         if not istraining:
             self.remove = False
-        
+
         def reduceTruth(uproot_arrays):
             
-            b = uproot_arrays[b'isB']
+            b = uproot_arrays['isB']
             
-            bb = uproot_arrays[b'isBB']
-            gbb = uproot_arrays[b'isGBB']
+            bb = uproot_arrays['isBB']
+            gbb = uproot_arrays['isGBB']
             
-            bl = uproot_arrays[b'isLeptonicB']
-            blc = uproot_arrays[b'isLeptonicB_C']
+            bl = uproot_arrays['isLeptonicB']
+            blc = uproot_arrays['isLeptonicB_C']
             lepb = bl+blc
             
-            c = uproot_arrays[b'isC']
-            cc = uproot_arrays[b'isCC']
-            gcc = uproot_arrays[b'isGCC']
+            c = uproot_arrays['isC']
+            cc = uproot_arrays['isCC']
+            gcc = uproot_arrays['isGCC']
             
-            ud = uproot_arrays[b'isUD']
-            s = uproot_arrays[b'isS']
+            ud = uproot_arrays['isUD']
+            s = uproot_arrays['isS']
             uds = ud+s
             
-            g = uproot_arrays[b'isG']
+            g = uproot_arrays['isG']
             
             return np.vstack((b,bb+gbb,lepb,c+cc+gcc,uds,g)).transpose()
             #return np.vstack((b+bb+gbb+lepb,c+cc+gcc,uds,g)).transpose()
@@ -336,10 +343,14 @@ class TrainData_ParT(TrainData):
                                          self.vtx_pts_branches,self.n_vtx,self.nsamples,
                                      treename='deepntuplizer/tree', flat = False)
 
+#        x_pair = uproot_tree_to_numpy(filename,
+ #                                        self.pair_branches,self.n_pair,self.nsamples,
+  #                                   treename='deepntuplizer/tree', flat = False)
+
 
 #        import uproot3 as uproot
-        urfile = u3.open(filename)["deepntuplizer/tree"]
-        truth_arrays = urfile.arrays(self.truth_branches)
+        urfile = u.open(filename)["deepntuplizer/tree"]
+        truth_arrays = urfile.arrays(self.truth_branches, library='numpy')
         truth = reduceTruth(truth_arrays)
         truth = truth.astype(dtype='float32', order='C') #important, float32 and C-type!
 
@@ -351,6 +362,7 @@ class TrainData_ParT(TrainData):
         cpf_pts = cpf_pts.astype(dtype='float32', order='C')
         npf_pts = npf_pts.astype(dtype='float32', order='C')
         vtx_pts = vtx_pts.astype(dtype='float32', order='C')
+   #     x_pair = x_pair.astype(dtype='float32', order='C')
         
         if self.remove:
 #            import uproot as u
@@ -394,6 +406,7 @@ class TrainData_ParT(TrainData):
             cpf_pts=cpf_pts[notremoves > 0]
             npf_pts=npf_pts[notremoves > 0]
             vtx_pts=vtx_pts[notremoves > 0]
+#            x_pair=x_pair[notremoves > 0]
             truth=truth[notremoves > 0]
 
         newnsamp=x_global.shape[0]
@@ -407,6 +420,7 @@ class TrainData_ParT(TrainData):
         cpf_pts = np.where(np.isfinite(cpf_pts), cpf_pts, 0)
         npf_pts = np.where(np.isfinite(npf_pts), npf_pts, 0)
         vtx_pts = np.where(np.isfinite(vtx_pts), vtx_pts, 0)
+ #       x_pair = np.where(np.isfinite(x_pair), x_pair, 0)
         
         return [x_global, x_cpf, x_npf, x_vtx, cpf_pts, npf_pts, vtx_pts], [truth], []
 
@@ -414,9 +428,23 @@ class TrainData_ParT(TrainData):
     def writeOutPrediction(self, predicted, features, truth, weights, outfilename, inputfile):
         # predicted will be a list
         
-        from root_numpy import array2root
-        out = np.core.records.fromarrays(np.vstack( (predicted[0].transpose(),truth[0].transpose(), features[0][:,0:2].transpose())),
-                                        #names='prob_isB, prob_isC, prob_isUDS, prob_isG, isB, isC, isUDS, isG, jet_pt, jet_eta')
-                                        names='prob_isB, prob_isBB, prob_isLeptB, prob_isC, prob_isUDS, prob_isG, isB, isBB, isLeptB, isC, isUDS, isG, jet_pt, jet_eta')
-                                        
-        array2root(out, outfilename, 'tree')
+        #from root_numpy import array2root
+        #out = np.core.records.fromarrays(np.vstack( (predicted[0].transpose(),truth[0].transpose(), features[0][:,0:2].transpose())),
+         #                               #names='prob_isB, prob_isC, prob_isUDS, prob_isG, isB, isC, isUDS, isG, jet_pt, jet_eta')
+          #                              names='prob_isB, prob_isBB, prob_isLeptB, prob_isC, prob_isUDS, prob_isG, isB, isBB, isLeptB, isC, isUDS, isG, jet_pt, jet_eta')
+        print(predicted[0].shape)
+        print(truth[0].shape)
+        print(features[0][:,0:2].shape)
+        arr = np.array(np.hstack((predicted[0],truth[0], features[0][:,0:2])))
+#        arr = np.array(np.hstack((truth[0], features[0][:,0:2], predicted[0])))
+        print(arr.shape)
+#        lab_names = []
+ #       for i in range(128):
+  #          lab_names += ['fts_'+str(i)]
+        out = pd.DataFrame(arr, columns=['prob_isB', 'prob_isBB', 'prob_isLeptB', 'prob_isC', 'prob_isUDS', 'prob_isG', 'isB', 'isBB', 'isLeptB', 'isC', 'isUDS', 'isG', 'jet_pt', 'jet_eta'])
+#        out = pd.DataFrame(arr, columns=['isB', 'isBB', 'isLeptB', 'isC', 'isUDS', 'isG', 'jet_pt', 'jet_eta']+lab_names)
+        
+        files = u.recreate(outfilename)
+        files["tree"] = out
+        files["tree"]
+        files["tree"].show()
