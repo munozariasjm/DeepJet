@@ -54,11 +54,11 @@ the training is launched in the following way:
 python3 train_DeepFlavour.py /path/to/the/output/of/convert/dataCollection.djcdc <output dir of your choice>
 ```
 
-If you use the PyTorch version, please be aware this is a dev and unstable version. You will need to modify files depending on your will.
+If you use the PyTorch version for training ParticleTransformer AK4, please be aware this is a dev and unstable version. You will need to modify files depending on your will.
 The PyTorch training is launched in the following way:
 
 ```
-python3 /path/to/DeepJet/pytorch/train_DeepFlavour.py /path/to/the/output/of/convert/dataCollection.djcdc <output dir of your choice>
+python3 /path/to/DeepJet/ParT/Part_train.py /path/to/the/output/of/convert/dataCollection.djcdc <output dir of your choice>
 ```
 
 Evaluation
@@ -76,7 +76,7 @@ Similarly to the training, the PyTorch prediction
 The PyTorch prediction is launched in the following way:
 
 ```
-python3 /path/to/DeepJet/pytorch/predict_pytorch.py <DeepJet/DeepJetTransformer> <output dir of training>/checkpoint.pth  <output dir of training>/trainsamples.djcdc <dir with test sample stored as rootfiles>/filelist.txt <output directory>
+python3 /path/to/DeepJet/ParT/Part_predict.py ParticleTransformer <output dir of training>/checkpoint.pth  <output dir of training>/trainsamples.djcdc <dir with test sample stored as rootfiles>/filelist.txt <output directory>
 ```
 
 Condor batch GPUs
