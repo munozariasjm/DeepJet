@@ -25,7 +25,7 @@ model = ParticleTransformer(num_classes = 6,
                             embed_dim = 128,
                             cpf_dim = 17,
                             npf_dim = 8,
-                            vtx_dim = 12,
+                            vtx_dim = 14,
                             for_inference = False)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
