@@ -24,14 +24,20 @@ import copy
 
 import imp
 
-def train_loop(dataloader, nbatches, model, loss_fn, optimizer, device, epoch, epoch_pbar, acc_loss):
+def train_loop(dataloader,
+               nbatches,
+               model,
+               loss_fn,
+               optimizer,
+               device,
+               epoch,
+               epoch_pbar,
+               acc_loss,
+               wb_logger=None,
+               ):
     for b in range(nbatches):
-        #should not happen unless files are broken (will give additional errors)
-        #if dataloader.isEmpty():
-         #   raise Exception("ran out of data")
 
         features_list, truth_list = next(dataloader)
-
         glob = torch.Tensor(features_list[0]).to(device)
         cpf = torch.Tensor(features_list[1]).to(device)
         npf = torch.Tensor(features_list[2]).to(device)
@@ -55,19 +61,17 @@ def train_loop(dataloader, nbatches, model, loss_fn, optimizer, device, epoch, e
         desc = f'Epoch {epoch+1} - loss {avg_loss:.6f}'
         epoch_pbar.set_description(desc)
         epoch_pbar.update(1)
+        if wb_logger:
+            wb_logger.log({'loss': avg_loss})
 
     return avg_loss
 
-def val_loop(dataloader, nbatches, model, loss_fn, device, epoch):
+def val_loop(dataloader, nbatches, model, loss_fn, device, epoch, wb_logger=None):
     num_batches = nbatches
     test_loss, correct = 0, 0
     acc = 0
     with torch.no_grad():
         for b in range(nbatches):
-        #should not happen unless files are broken (will give additional errors)
-            #if dataloader.isEmpty():
-             #   raise Exception("ran out of data")
-
             features_list, truth_list = next(dataloader)
             glob = torch.Tensor(features_list[0]).to(device)
             cpf = torch.Tensor(features_list[1]).to(device)
@@ -87,6 +91,8 @@ def val_loop(dataloader, nbatches, model, loss_fn, device, epoch):
     test_loss /= num_batches
     correct /= (num_batches * len(y))
     print(f"Test Error: \n Accuracy: {(100*acc/num_batches):>0.6f}%, Avg loss: {test_loss:>6f} \n")
+    if wb_logger:
+        wb_logger.log({'val_loss': test_loss, 'val_acc': acc})
     return test_loss
 
 def cross_entropy_one_hot(input, target):
@@ -95,10 +101,22 @@ def cross_entropy_one_hot(input, target):
 
 class training_base(object):
 
-    def __init__(self, model = None, criterion = cross_entropy_one_hot, optimizer = None,
-                scheduler = None, splittrainandtest=0.85, useweights=False, testrun=False,
-                testrun_fraction=0.1, resumeSilently=False, renewtokens=True,
-		 collection_class=DataCollection, parser=None, recreate_silently=False):
+    def __init__(self, model = None,
+                 criterion = cross_entropy_one_hot,
+                 optimizer = None,
+                 scheduler = None,
+                 splittrainandtest=0.85,
+                 useweights=False,
+                 testrun=False,
+                 testrun_fraction=0.1,
+                 resumeSilently=False,
+                 renewtokens=True,
+                 collection_class=DataCollection,
+                 parser=None,
+                 recreate_silently=False,
+                 wb_logger=None,
+                 **kargs,
+                 ):
 
         import sys
         scriptname=sys.argv[0]
@@ -122,6 +140,7 @@ class training_base(object):
         self.trainedepoches = 0
         self.best_loss = np.inf
         self.checkpoint = 0
+        self.wb_logger = wb_logger
 
         isNewTraining=True
         if os.path.isdir(self.outputDir):
@@ -158,22 +177,6 @@ class training_base(object):
         self.train_data.useweights=useweights
 
         self.val_data = self.train_data.split(splittrainandtest)
-
-        #shapes = self.train_data.getNumpyFeatureShapes()
-        #inputdtypes = self.train_data.getNumpyFeatureDTypes()
-        #inputnames= self.train_data.getNumpyFeatureArrayNames()
-        #for i in range(len(inputnames)): #in case they are not named
-         #   if inputnames[i]=="" or inputnames[i]=="_rowsplits":
-          #      inputnames[i]="input_"+str(i)+inputnames[i]
-
-        #print("shapes", shapes)
-        #print("inputdtypes", inputdtypes)
-        #print("inputnames", inputnames)
-
-        #self.torch_inputsshapes=[]
-        #counter=0
-        #for s,dt,n in zip(shapes,inputdtypes,inputnames):
-        #    self.torch_inputsshapes.append(s)
 
         if not isNewTraining:
             if os.path.isfile(self.outputDir+'/checkpoint.pth'):
@@ -286,18 +289,17 @@ class training_base(object):
                     self.model.train()
                     for param_group in self.optimizer.param_groups:
                         print('/n Learning rate = '+str(param_group['lr'])+' /n')
-                    train_loss = train_loop(train_generator, nbatches_train, self.model, self.criterion, self.optimizer, self.device, self.trainedepoches, epoch_pbar, acc_loss=0)
+                    train_loss = train_loop(train_generator, nbatches_train, self.model, self.criterion, self.optimizer, self.device, self.trainedepoches, epoch_pbar, acc_loss=0, wb_logger=wb_logger)
                     self.scheduler.step()
 
                     self.model.eval()
-                    val_loss = val_loop(val_generator, nbatches_val, self.model, self.criterion, self.device, self.trainedepoches)
+                    val_loss = val_loop(val_generator, nbatches_val, self.model, self.criterion, self.device, self.trainedepoches, wb_loop, wb_logger=wb_logger)
 
                     self.trainedepoches += 1
 
                     if(val_loss < self.best_loss):
                         self.best_loss = val_loss
                         self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = True)
-
 
                     self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
 

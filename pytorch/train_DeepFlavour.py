@@ -1,4 +1,4 @@
-import torch 
+import torch
 import torch.nn as nn
 #from DeepJetCore.training.pytorch_first_try import training_base
 from pytorch_first_try import training_base
@@ -11,13 +11,13 @@ def cross_entropy_one_hot(input, target):
     _, labels = target.max(dim=1)
     return nn.CrossEntropyLoss()(input, labels)
 
-num_epochs = 30
+num_epochs = 50
 
 lr_epochs = max(1, int(num_epochs * 0.3))
-lr_rate = 0.01 ** (1.0 / lr_epochs)
+lr_rate = 0.02 ** (1.0 / lr_epochs)
 mil = list(range(num_epochs - lr_epochs, num_epochs))
 
-model = DeepJet(num_classes = 4) #DeepJetTransformer(num_classes = 4)
+model = DeepJet(num_classes = 6) #DeepJetTransformer(num_classes = 4)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model.to(device)
 
@@ -30,5 +30,5 @@ train=training_base(model = model, criterion = criterion, optimizer = optimizer,
 
 train.train_data.maxFilesOpen=1
 
-history = train.trainModel(nepochs=num_epochs+lr_epochs, 
+history = train.trainModel(nepochs=num_epochs+lr_epochs,
                                  batchsize=4000)
