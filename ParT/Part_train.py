@@ -1,4 +1,4 @@
-import torch 
+import torch
 import torch.nn as nn
 from pytorch_Part import training_base
 from ParT import ParticleTransformer
@@ -23,7 +23,7 @@ model = ParticleTransformer(num_classes = 6,
                             num_enc = 3,
                             num_head = 8,
                             embed_dim = 128,
-                            cpf_dim = 17,
+                            cpf_dim = 16, ## TODO: change to 17
                             npf_dim = 8,
                             vtx_dim = 14,
                             for_inference = False)
@@ -44,5 +44,5 @@ train=training_base(model = model, criterion = criterion, optimizer = optimizer,
 
 train.train_data.maxFilesOpen=1
 
-model,history = train.trainModel(nepochs=num_epochs, 
+model,history = train.trainModel(nepochs=num_epochs,
                                  batchsize=512)
