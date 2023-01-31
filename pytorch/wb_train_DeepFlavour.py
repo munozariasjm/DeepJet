@@ -31,10 +31,13 @@ config_d = {
 if __name__ == '__main__':
 
     wandb.init(project='DeepJetCERN', config=config_d, entity='munozariasjm')
+
     lr_epochs = max(1, int(config_d["num_epochs"] * 0.3))
     lr_rate = 0.02 ** (1.0 / lr_epochs)
     mil = list(range(config_d["num_epochs"] - lr_epochs, config_d["num_epochs"]))
     model = select_model(config_d["model_name"])
+    wandb.watch(model, log='all')
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
@@ -48,9 +51,11 @@ if __name__ == '__main__':
         torch.optim.AdamW(model.parameters(), lr = 0.003, eps = 1e-07)
 
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = mil, gamma = lr_rate)
-    train=training_base(model = model, criterion = criterion, optimizer = optimizer, scheduler = scheduler, testrun=False)
+    train=training_base(model = model, criterion = criterion, optimizer = optimizer, scheduler = scheduler, testrun=False, wb_logger=wandb)
 
     train.train_data.maxFilesOpen=1
 
     history = train.trainModel(nepochs=config_d["num_epochs"]+lr_epochs,
                                     config_d["batchsize"]=1024*4)
+
+    wandb.finish()

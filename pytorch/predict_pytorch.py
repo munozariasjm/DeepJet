@@ -35,17 +35,17 @@ inputdir=None
 
 def test_loop(dataloader, model, nbatches, pbar):
     predictions = 0
-    
+
     with torch.no_grad():
         for b in range(nbatches):
-            
+
             features_list, truth_list = next(dataloader)
             glob = torch.Tensor(features_list[0]).to(device)
             cpf = torch.Tensor(features_list[1]).to(device)
             npf = torch.Tensor(features_list[2]).to(device)
             vtx = torch.Tensor(features_list[3]).to(device)
             #pxl = torch.Tensor(features_list[4]).to(device)
-            y = torch.Tensor(truth_list[0]).to(device)    
+            y = torch.Tensor(truth_list[0]).to(device)
             # Compute prediction
             pred = nn.Softmax(dim=1)(model(glob,cpf,npf,vtx)).cpu().numpy()
             if b == 0:
@@ -55,7 +55,7 @@ def test_loop(dataloader, model, nbatches, pbar):
             desc = 'Predicting probs : '
             pbar.set_description(desc)
             pbar.update(1)
-        
+
     return predictions
 
 ## prepare input lists for different file formats
@@ -65,7 +65,7 @@ if args.inputSourceFileList[-6:] == ".djcdc":
     inputdir = predsamples.dataDir
     for s in predsamples.samples:
         inputdatafiles.append(s)
-        
+
 elif args.inputSourceFileList[-6:] == ".djctd":
     inputdir = os.path.abspath(os.path.dirname(args.inputSourceFileList))
     infile = os.path.basename(args.inputSourceFileList)
@@ -80,10 +80,10 @@ else:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 if args.model == 'DeepJet':
-    model = DeepJet(num_classes = 4)
+    model = DeepJet(num_classes = 6)
 if args.model == 'DeepJetTransformer':
-    model = DeepJetTransformer(num_classes = 4)
-    
+    model = DeepJetTransformer(num_classes = 6)
+
 check = torch.load(args.inputModel, map_location=torch.device('cpu'))
 model.load_state_dict(check['state_dict'])
 
@@ -103,14 +103,14 @@ outputs = []
 os.system('mkdir -p '+args.outputDir)
 
 for inputfile in inputdatafiles:
-    
+
     print('predicting ',inputdir+"/"+inputfile)
-    
+
     use_inputdir = inputdir
     if inputfile[0] == "/":
         use_inputdir=""
     outfilename = "pred_"+os.path.basename( inputfile )
-    
+
     td = dc.dataclass()
 
     if inputfile[-5:] == 'djctd':
@@ -133,23 +133,23 @@ for inputfile in inputdatafiles:
 
     with tqdm(total = gen.getNBatches()) as pbar:
         pbar.set_description('Predicting : ')
-    
+
     predicted = test_loop(gen.feedNumpyData(), model, nbatches=gen.getNBatches(), pbar = pbar)
-    
+
     x = td.transferFeatureListToNumpy(args.pad_rowsplits)
     w = td.transferWeightListToNumpy(args.pad_rowsplits)
     y = td.transferTruthListToNumpy(args.pad_rowsplits)
 
     td.clear()
     gen.clear()
-    
+
     if not type(predicted) == list: #circumvent that keras return only an array if there is just one list item
-        predicted = [predicted]   
+        predicted = [predicted]
     overwrite_outname = td.writeOutPrediction(predicted, x, y, w, args.outputDir + "/" + outfilename, use_inputdir+"/"+inputfile)
     if overwrite_outname is not None:
         outfilename = overwrite_outname
     outputs.append(outfilename)
-    
+
 with open(args.outputDir + "/outfiles.txt","w") as f:
     for l in outputs:
         f.write(l+'\n')
