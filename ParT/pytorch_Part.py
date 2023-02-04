@@ -116,8 +116,8 @@ class training_base(object):
 
     def __init__(self, model = None, criterion = cross_entropy_one_hot, optimizer = None,
                 scheduler = None, scaler = None, splittrainandtest=0.85, useweights=False,
-                 testrun=False, testrun_fraction=0.1, resumeSilently=False, renewtokens=True,
-		 collection_class=DataCollection, parser=None, recreate_silently=False):
+                testrun=False, testrun_fraction=0.1, resumeSilently=False, renewtokens=True,
+		        collection_class=DataCollection, parser=None, recreate_silently=False, logger=None, **kwargs):
 
         import sys
         scriptname=sys.argv[0]
@@ -142,6 +142,7 @@ class training_base(object):
         self.trainedepoches = 0
         self.best_loss = np.inf
         self.checkpoint = 0
+        self.logger = logger
 
         isNewTraining=True
         if os.path.isdir(self.outputDir):
@@ -284,7 +285,6 @@ class training_base(object):
             #self.optimizer.to(self.device)
 
             while(self.trainedepoches < nepochs):
-
                 #this can change from epoch to epoch
                 #calculate steps for this epoch
                 #feed info below
@@ -312,6 +312,13 @@ class training_base(object):
 
                     self.model.eval()
                     val_loss = val_loop(val_generator, nbatches_val, self.model, self.criterion, self.device, self.trainedepoches)
+
+                    if self.logger is not None:
+                        self.logger.log({
+                            "epoch": self.trainedepoches,
+                            "train_loss": train_loss,
+                            "val_loss": val_loss,
+                        })
 
                     self.trainedepoches += 1
 
