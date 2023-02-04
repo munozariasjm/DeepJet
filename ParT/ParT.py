@@ -80,7 +80,7 @@ def p3_norm(p, eps=1e-8):
 def pairwise_lv_fts(xi, xj, num_outputs=4, eps=1e-8, for_onnx=False):
     pti, rapi, phii = to_ptrapphim(xi, False, eps=None, for_onnx=for_onnx).split((1, 1, 1), dim=1)
     ptj, rapj, phij = to_ptrapphim(xj, False, eps=None, for_onnx=for_onnx).split((1, 1, 1), dim=1)
-    
+
     ai = torch.ne(pti, 0.0).float()
     aj = torch.ne(ptj, 0.0).float()
     mask = ai*aj
@@ -213,7 +213,7 @@ class Embed(nn.Module):
             x = x.permute(2, 0, 1).contiguous()
         # x: (seq_len, batch, embed_dim)
         return self.embed(x)
-    
+
 def tril_indices(x, seq_len, offset = True):
     if offset:
         a, b = [], []
@@ -229,7 +229,7 @@ def tril_indices(x, seq_len, offset = True):
                 b.append(j)
     i = torch.tensor(a)
     j = torch.tensor(b)
-    
+
     return i, j
 
 
@@ -275,7 +275,7 @@ class PairEmbed(nn.Module):
                 #x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2)).view(batch_size, -1, seq_len * seq_len)
 
         elements = self.embed(x)  # (batch, embed_dim, num_elements
-        
+
         if not self.for_onnx:
             y = torch.zeros(batch_size, self.out_dim, seq_len, seq_len, dtype=elements.dtype, device=x.device)
             y[:, :, i, j] = elements
@@ -301,7 +301,7 @@ class InputConv(nn.Module):
 
     def __init__(self, in_chn, out_chn, dropout_rate = 0.1, **kwargs):
         super(InputConv, self).__init__(**kwargs)
-        
+
         self.lin = torch.nn.Conv1d(in_chn, out_chn, kernel_size=1)
         self.bn1 = torch.nn.BatchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
         #self.bn2 = torch.nn.BatchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
@@ -309,19 +309,19 @@ class InputConv(nn.Module):
         self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, x, sc, skip = True):
-        
+
         x2 = self.dropout(self.bn1(self.act(self.lin(x))))
         if skip:
             x = sc + x2
         else:
             x = x2
         return x
-    
+
 class LinLayer(nn.Module):
 
     def __init__(self, in_chn, out_chn, dropout_rate = 0.1, **kwargs):
         super(LinLayer, self).__init__(**kwargs)
-        
+
         self.lin = torch.nn.Linear(in_chn, out_chn)
         self.bn1 = torch.nn.BatchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
         self.bn2 = torch.nn.BatchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
@@ -329,7 +329,7 @@ class LinLayer(nn.Module):
         self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, x, sc, skip = True):
-        
+
         x2 = self.dropout(self.bn1(self.act(self.lin(x))))
         if skip:
             x = self.bn2(sc + x2)
@@ -356,7 +356,7 @@ class InputProcess(nn.Module):
 
     def __init__(self, cpf_dim, npf_dim, vtx_dim, embed_dim, **kwargs):
         super(InputProcess, self).__init__(**kwargs)
-        
+
         self.cpf_bn0 = torch.nn.BatchNorm1d(cpf_dim, eps = 0.001, momentum = 0.1)
         self.cpf_conv1 = InputConv(cpf_dim,embed_dim)
         self.cpf_conv2 = InputConv(embed_dim,embed_dim*4)
@@ -375,7 +375,7 @@ class InputProcess(nn.Module):
 #        self.meta_conv = InputConv(8*16,8*16)
 
     def forward(self, cpf, npf, vtx):
-                
+
         cpf = self.cpf_bn0(torch.transpose(cpf, 1, 2))
         cpf = self.cpf_conv1(cpf, cpf, skip = False)
         cpf = self.cpf_conv2(cpf, cpf, skip = False)
@@ -393,26 +393,26 @@ class InputProcess(nn.Module):
 
         out = torch.cat((cpf,npf,vtx), dim = 2)
         out = torch.transpose(out, 1, 2)
-        
+
         return out
-    
+
 class DenseClassifier(nn.Module):
 
     def __init__(self, **kwargs):
         super(DenseClassifier, self).__init__(**kwargs)
-             
+
         self.LinLayer1 = LinLayer(128,128)
         #self.LinLayer2 = LinLayer(128,128)
         #self.LinLayer3 = LinLayer(128,128)
 
     def forward(self, x):
-        
+
         x = self.LinLayer1(x, x, skip = True)
         #x = self.LinLayer2(x, x, skip = True)
         #x = self.LinLayer3(x, x, skip = True)
-        
+
         return x
-    
+
 class AttentionPooling(nn.Module):
 
     def __init__(self, **kwargs):
@@ -425,16 +425,16 @@ class AttentionPooling(nn.Module):
         self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
-        
+
         a = self.ConvLayer(torch.transpose(x, 1, 2))
         a = self.Softmax(a)
-        
+
         y = torch.matmul(a,x)
         y = torch.squeeze(y, dim = 1)
         y = self.dropout(self.bn(self.act(y)))
-        
+
         return y
-    
+
 class HF_TransformerEncoderLayer(nn.Module):
     r"""TransformerEncoderLayer is made up of self-attn and feedforward network.
     This standard encoder layer is based on the paper "Attention Is All You Need".
@@ -489,11 +489,11 @@ class HF_TransformerEncoderLayer(nn.Module):
         src2 = self.self_attn(src2,src2,src2, key_padding_mask = padding_mask, attn_mask = mask)[0]
         src = src + src2
         src = self.norm1(src)
-        
+
         src2 = self.dropout0(self.linear2(self.norm2(self.activation(self.linear1(src)))))
         src = src + src2
         return src
-    
+
 class HF_TransformerEncoder(nn.Module):
     r"""TransformerEncoder is a stack of N encoder layers
     Args:
@@ -534,7 +534,7 @@ class HF_TransformerEncoder(nn.Module):
         #    output = self.norm(output)
 
         return output
-    
+
 class CLS_TransformerEncoderLayer(nn.Module):
     r"""TransformerEncoderLayer is made up of self-attn and feedforward network.
     This standard encoder layer is based on the paper "Attention Is All You Need".
@@ -576,13 +576,13 @@ class CLS_TransformerEncoderLayer(nn.Module):
         super(CLS_TransformerEncoderLayer, self).__setstate__(state)
 
     def forward(self, cls_token, x, padding_mask):
-        r"""Pass the input through the encoder layer.                                                
-        Args:                                                                                        
-            src: the sequence to the encoder layer (required).                                       
-            src_mask: the mask for the src sequence (optional).                                      
-            src_key_padding_mask: the mask for the src keys per batch (optional).                    
-        Shape:                                                                                       
-            see the docs in Transformer class.                                                       
+        r"""Pass the input through the encoder layer.
+        Args:
+            src: the sequence to the encoder layer (required).
+            src_mask: the mask for the src sequence (optional).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
+        Shape:
+            see the docs in Transformer class.
         """
         src = torch.cat((cls_token, x), dim = 1)
         padding_mask = torch.cat((torch.zeros_like(padding_mask[:, :1]), padding_mask), dim=1)
@@ -596,7 +596,7 @@ class CLS_TransformerEncoderLayer(nn.Module):
         src2 = self.dropout0(self.linear2(self.norm2(self.activation(self.linear1(src)))))
         src = src + src2
         return src
-    
+
 class CLS_TransformerEncoder(nn.Module):
     r"""TransformerEncoder is a stack of N encoder layers
     Args:
@@ -633,7 +633,7 @@ class CLS_TransformerEncoder(nn.Module):
             output = mod(output, mask)
 
         return output
-    
+
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
@@ -663,7 +663,7 @@ class DeepJetTransformer(nn.Module):
                  num_enc = 6,
                  **kwargs):
         super(DeepJetTransformer, self).__init__(**kwargs)
-        
+
         self.InputProcess = InputProcess()
         self.DenseClassifier = DenseClassifier()
         self.Linear = nn.Linear(128, num_classes)
@@ -672,13 +672,13 @@ class DeepJetTransformer(nn.Module):
         self.pair_embed = PairEmbed(4, [64,64,64] + [8], for_onnx=False)
         #self.global_bn = torch.nn.BatchNorm1d(15, eps = 0.001, momentum = 0.1)
 
-        self.EncoderLayer = HF_TransformerEncoderLayer(d_model=128, nhead=8, dropout = 0.1)
+        self.EncoderLayer = HF_TransformerEncoderLayer(d_model=128, nhead=8, dropout = 0.2)
         self.Encoder = HF_TransformerEncoder(self.EncoderLayer, num_layers=num_enc)
 
     def forward(self, inpt):
 
         cpf, npf, vtx, cpf_4v, npf_4v, vtx_4v = inpt[0], inpt[1], inpt[2], inpt[3], inpt[4], inpt[5]
-        
+
         cpf, npf, vtx = self.InputProcess(cpf[:,:,:], npf, vtx)
         padding_mask = torch.cat((cpf_4v[:,:,:1],npf_4v[:,:,:1],vtx_4v[:,:,:1]), dim = 1)
         padding_mask =torch.eq(padding_mask[:,:,0], 0.0)
@@ -698,12 +698,12 @@ class DeepJetTransformer(nn.Module):
 
         enc = self.Encoder(enc, attn_mask, padding_mask)
         enc = self.pooling(enc)
-        
+
         x = enc #torch.cat((global_vars, enc), dim = 1)
         x = self.DenseClassifier(x)
-        
+
         output = self.Linear(x)
-        
+
         return output
 
 class ParticleTransformer(nn.Module):
@@ -728,12 +728,12 @@ class ParticleTransformer(nn.Module):
         self.pair_embed = PairEmbed(4, [64,64,64] + [num_head], for_onnx=for_inference)
         self.cls_norm = torch.nn.LayerNorm(embed_dim)
 
-        self.EncoderLayer = HF_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.1)
+        self.EncoderLayer = HF_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.2)
         self.Encoder = HF_TransformerEncoder(self.EncoderLayer, num_layers=num_enc)
 
-        self.CLS_EncoderLayer1 = CLS_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.1)
+        self.CLS_EncoderLayer1 = CLS_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.2)
         if(self.num_enc_layers > 3):
-            self.CLS_EncoderLayer2 = CLS_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.1)
+            self.CLS_EncoderLayer2 = CLS_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.2)
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim), requires_grad=True)
         trunc_normal_(self.cls_token, std=.02)
@@ -767,5 +767,5 @@ class ParticleTransformer(nn.Module):
 
         if self.for_inference:
             output = torch.softmax(output, dim=1)
-        
+
         return output
