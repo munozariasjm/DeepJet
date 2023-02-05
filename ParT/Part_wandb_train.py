@@ -19,6 +19,7 @@ wandb_params = {
 }
 wandb.init(project="ParticleTransformer", tags=["CMS"],
            resume=False,
+           entity="munozariasjm",
            config={c: k for c, k in wandb_params.items() if isinstance(k, (int, float, str))},
            )
 
@@ -54,8 +55,8 @@ scaler = torch.cuda.amp.GradScaler()
 criterion = cross_entropy_one_hot
 optimizer = Ranger(model.parameters(), lr = 1e-3)
 #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = [1], gamma = 0.1)
-#scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = mil, gamma = lr_rate)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=14714, T_mult=1, eta_min=5e-6, last_epoch=-1)
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = mil, gamma = lr_rate)
+#scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=14714, T_mult=1, eta_min=5e-6, last_epoch=-1)
 #scheduler = CosineAnealingWarmRestartsWeightDecay(optimizer, T_0=14714, T_mul=1, eta_min=5e-6, last_epoch=-1, gamma = 0.9, max_lr = 5e-4)
 
 train=training_base(model = model,
@@ -69,4 +70,5 @@ train=training_base(model = model,
 
 train.train_data.maxFilesOpen=1
 
-model,history = train.trainModel(nepochs=num_epochs, batchsize=wandb_params["BS"])
+#model,history = train.trainModel(nepochs=num_epochs, batchsize=wandb_params["BS"])
+train.trainModel(nepochs=num_epochs, batchsize=wandb_params["BS"]);

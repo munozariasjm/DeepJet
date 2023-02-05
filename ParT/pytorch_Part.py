@@ -55,14 +55,16 @@ def train_loop(dataloader, nbatches, model, loss_fn, optimizer, device, epoch, e
             pred = model(inpt)
             loss = loss_fn(pred, y.type_as(pred))
         scaler.scale(loss).backward()
+
         #scaler.unscale_(optimizer)
-        #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), 100.0)
         scaler.step(optimizer)
         scaler.update()
         #loss.backward()
         #optimizer.step()
         #scheduler.step()
         acc_loss += loss.detach().item()
+        optimizer.zero_grad()
         # Update progress bar description
         avg_loss = acc_loss / (b + 1)
         #if((b % 100) == 0):
@@ -329,5 +331,5 @@ class training_base(object):
 
                     self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
 
-                traingen.shuffleFilelist() #Swap with the line above if you have an error
+                traingen.shuffleFileList() #Swap with the line above if you have an error
 		#traingen.shuffleFilelist() #Swap with the line above if you have an error
