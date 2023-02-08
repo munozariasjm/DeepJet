@@ -60,7 +60,7 @@ def train_loop(dataloader, nbatches, model, loss_fn, optimizer, device, epoch, e
         scaler.scale(loss).backward()
 
         scaler.unscale_(optimizer)
-        #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 100.0)
         #loss.backward()
         #optimizer.step()
 
@@ -348,5 +348,5 @@ class training_base(object):
                             self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
                     else:
                         self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
-                traingen.shuffleFileList() #Swap with the line above if you have an error
+                traingen.shuffleFilelist() #Swap with the line above if you have an error
 		#traingen.shuffleFilelist() #Swap with the line above if you have an error

@@ -42,7 +42,7 @@ model = ParticleTransformerTrim(num_classes = 6,
                             num_enc = wandb_params["num_enc"],
                             num_head = wandb_params["num_head"],
                             embed_dim = wandb_params["embed_dim"],
-                            cpf_dim = 16, ## TODO: change to 17
+                            cpf_dim = 29, ## TODO: change to 17
                             npf_dim = 8,
                             vtx_dim = 14,
                             for_inference = False)

@@ -1,0 +1,47 @@
+diff --git a/ParT/Part_wandb_train.py b/ParT/Part_wandb_train.py
+index e572f74..1e16568 100644
+--- a/ParT/Part_wandb_train.py
++++ b/ParT/Part_wandb_train.py
+@@ -42,7 +42,7 @@ model = ParticleTransformerTrim(num_classes = 6,
+                             num_enc = wandb_params["num_enc"],
+                             num_head = wandb_params["num_head"],
+                             embed_dim = wandb_params["embed_dim"],
+-                            cpf_dim = 16, ## TODO: change to 17
++                            cpf_dim = 29, ## TODO: change to 17
+                             npf_dim = 8,
+                             vtx_dim = 14,
+                             for_inference = False)
+diff --git a/ParT/pytorch_Part.py b/ParT/pytorch_Part.py
+index 63a055d..cb13eb5 100644
+--- a/ParT/pytorch_Part.py
++++ b/ParT/pytorch_Part.py
+@@ -348,5 +348,5 @@ class training_base(object):
+                             self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
+                     else:
+                         self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
+-                traingen.shuffleFileList() #Swap with the line above if you have an error
++                traingen.shuffleFilelist() #Swap with the line above if you have an error
+ 		#traingen.shuffleFilelist() #Swap with the line above if you have an error
+diff --git a/eval_analysis/create_analysis.py b/eval_analysis/create_analysis.py
+index fc2d726..b1f844b 100644
+--- a/eval_analysis/create_analysis.py
++++ b/eval_analysis/create_analysis.py
+@@ -37,7 +37,6 @@ if __name__ == "__main__":
+     assert len(files) > 0, "No files found in {}".format(TEST_PRED_PATH)
+     for file_path in tqdm(files):
+         try:
+-            tqdm.write("Processing file {}".format(file_path))
+             evaluator = EvalTool(file_path)
+             ground_truths.append(evaluator.get_true_classes())
+             predictions.append(evaluator.get_pred_classes())
+@@ -68,8 +67,8 @@ if __name__ == "__main__":
+     c_labels = all_labels[evaluator.true_vars.index("isC")]
+ 
+     b_vs_c_tprs, b_vs_c_rejs = metrics.get_curves(b_probas, c_probas, b_labels, c_labels)
+-
+-    df = pd.DataFrame({"b_vs_udsg_tprs": b_vs_udsg_tprs, "b_vs_udsg_rejs": b_vs_udsg_rejs, "b_vs_c_tprs": b_vs_c_tprs, "b_vs_c_rejs": b_vs_c_rejs})
++    df = pd.DataFrame({"preds": all_predicted_cls, "labels": all_ground_truths_cls, "pts": pts})
++    #df = pd.DataFrame({"b_vs_udsg_tprs": b_vs_udsg_tprs, "b_vs_udsg_rejs": b_vs_udsg_rejs, "b_vs_c_tprs": b_vs_c_tprs, "b_vs_c_rejs": b_vs_c_rejs})
+     df.to_pickle(SAVE_PATH)
+     report = classification_report(all_ground_truths_cls, all_predicted_cls, target_names=evaluator.prob_vars, output_dict=True)
+     print(report)
