@@ -27,7 +27,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 #from pytorch_deepjet import DeepJet
 #from pytorch_deepjet_transformer_v2 import DeepJetTransformer, ParticleTransformer
-from ParT import DeepJetTransformer, ParticleTransformer
+from ParT import DeepJetTransformer, ParticleTransformer, ParticleTransformerTrim
 from torch.optim import Adam, SGD
 from tqdm import tqdm
 
@@ -87,7 +87,7 @@ else:
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 if args.model == 'ParticleTransformer':
-    model = ParticleTransformer(num_classes = 6,
+    model = ParticleTransformerTrim(num_classes = 6,
                                 num_enc = 3,
                                 num_head = 8,
                                 embed_dim = 128,

@@ -161,6 +161,11 @@ class TrainData_ParT(TrainData):
                              'Cpfcan_puppiw',
                              'Cpfcan_chi2',
                              'Cpfcan_quality']
+                            #'Cpfcan_nhitpixelBarrelLayer1', 'Cpfcan_nhitpixelBarrelLayer2', 'Cpfcan_nhitpixelBarrelLayer3', 'Cpfcan_nhitpixelBarrelLayer4',
+                             #'Cpfcan_nhitpixelEndcapLayer1', 'Cpfcan_nhitpixelEndcapLayer2', 'Cpfcan_numberOfValidHits', 'Cpfcan_numberOfValidPixelHits',
+                             #'Cpfcan_numberOfValidStripHits', 'Cpfcan_numberOfValidStripTIBHits', 'Cpfcan_numberOfValidStripTIDHits', 'Cpfcan_numberOfValidStripTOBHits',
+                             #'Cpfcan_numberOfValidStripTECHits']
+
 
         self.n_cpf = 25
 
@@ -186,6 +191,9 @@ class TrainData_ParT(TrainData):
 
         self.cpf_pts_branches = ['Cpfcan_pt','Cpfcan_eta',
                                  'Cpfcan_phi', 'Cpfcan_e']
+                                 #'Cpfcan_nhitpixelBarrelLayer1', 'Cpfcan_nhitpixelBarrelLayer2',
+                                 #'Cpfcan_nhitpixelEndcapLayer1', 'Cpfcan_nhitpixelEndcapLayer2',
+                                 #'Cpfcan_numberOfValidHits', 'Cpfcan_numberOfValidPixelHits']
 
         self.npf_pts_branches = ['Npfcan_pt','Npfcan_eta',
                                  'Npfcan_phi', 'Npfcan_e']

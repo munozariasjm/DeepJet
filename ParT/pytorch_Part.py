@@ -21,10 +21,12 @@ import torch.nn.functional as F
 from torch.optim import Adam, SGD
 from tqdm import tqdm
 import copy
+from torch_ema import ExponentialMovingAverage
 
 import imp
 
-def train_loop(dataloader, nbatches, model, loss_fn, optimizer, device, epoch, epoch_pbar, acc_loss, scaler, scheduler):
+
+def train_loop(dataloader, nbatches, model, loss_fn, optimizer, device, epoch, epoch_pbar, acc_loss, scaler, scheduler, ema=None):
     for b in range(nbatches):
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -54,12 +56,19 @@ def train_loop(dataloader, nbatches, model, loss_fn, optimizer, device, epoch, e
         with torch.cuda.amp.autocast():
             pred = model(inpt)
             loss = loss_fn(pred, y.type_as(pred))
+
         scaler.scale(loss).backward()
 
-        #scaler.unscale_(optimizer)
-        #torch.nn.utils.clip_grad_norm_(model.parameters(), 100.0)
+        scaler.unscale_(optimizer)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        #loss.backward()
+        #optimizer.step()
+
+
         scaler.step(optimizer)
         scaler.update()
+        if ema is not None:
+            ema.update()
         #loss.backward()
         #optimizer.step()
         #scheduler.step()
@@ -75,7 +84,7 @@ def train_loop(dataloader, nbatches, model, loss_fn, optimizer, device, epoch, e
 
     return avg_loss
 
-def val_loop(dataloader, nbatches, model, loss_fn, device, epoch):
+def val_loop(dataloader, nbatches, model, loss_fn, device, epoch, ema = None):
     num_batches = nbatches
     test_loss, correct = 0, 0
 
@@ -97,8 +106,13 @@ def val_loop(dataloader, nbatches, model, loss_fn, device, epoch):
             #pair = torch.Tensor(features_list[7]).to(device)
             y = torch.Tensor(truth_list[0]).to(device)
             # Compute prediction and loss
+
             inpt = (cpf, npf, vtx, cpf_4v, npf_4v, vtx_4v)
-            pred = model(inpt)
+            if ema:
+                with ema.average_parameters():
+                    pred = model(inpt)
+            else:
+                pred = model(inpt)
             # Compute prediction and loss
             _, labels = y.max(dim=1)
 
@@ -145,6 +159,7 @@ class training_base(object):
         self.best_loss = np.inf
         self.checkpoint = 0
         self.logger = logger
+        self.ema = None#ExponentialMovingAverage(model.parameters(), decay=0.85)
 
         isNewTraining=True
         if os.path.isdir(self.outputDir):
@@ -313,7 +328,7 @@ class training_base(object):
                     self.scheduler.step()
 
                     self.model.eval()
-                    val_loss = val_loop(val_generator, nbatches_val, self.model, self.criterion, self.device, self.trainedepoches)
+                    val_loss = val_loop(val_generator, nbatches_val, self.model, self.criterion, self.device, self.trainedepoches, self.ema)
 
                     if self.logger is not None:
                         self.logger.log({
@@ -328,8 +343,10 @@ class training_base(object):
                         self.best_loss = val_loss
                         self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = True)
 
-
-                    self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
-
+                    if self.ema is not None:
+                        with self.ema.average_parameters():
+                            self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
+                    else:
+                        self.saveModel(self.model, self.optimizer, self.trainedepoches, self.scheduler, self.best_loss, is_best = False)
                 traingen.shuffleFileList() #Swap with the line above if you have an error
 		#traingen.shuffleFilelist() #Swap with the line above if you have an error

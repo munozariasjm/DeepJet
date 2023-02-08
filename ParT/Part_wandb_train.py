@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from pytorch_Part import training_base
-from ParT import ParticleTransformer
+from ParT import ParticleTransformer, ParticleTransformerTrim
 #from pytorch_deepjet_transformer_v4_corr import DeepJetTransformer, ParticleTransformer
 #from ParT_old import DeepJetTransformer, ParticleTransformer
 from pytorch_ranger import *
@@ -9,15 +9,15 @@ from pytorch_ranger import *
 import wandb
 
 wandb_params = {
-    "num_epochs": 30,
+    "num_epochs": 50,
     "lr_mult": 0.3,
     "lr_rate": 0.005,
-    "num_enc": 8,
+    "num_enc": 3,
     "num_head": 8,
-    "embed_dim": 256,
+    "embed_dim": 128,
     "BS": 2048,
 }
-wandb.init(project="ParticleTransformer", tags=["CMS"],
+wandb.init(project="StudyParticleTransformer", tags=["CMS"],
            resume=False,
            entity="munozariasjm",
            config={c: k for c, k in wandb_params.items() if isinstance(k, (int, float, str))},
@@ -36,7 +36,9 @@ mil = list(range(num_epochs - lr_epochs, num_epochs))
 print(lr_rate)
 print(mil)
 
-model = ParticleTransformer(num_classes = 6,
+# Dropping all vtx info
+
+model = ParticleTransformerTrim(num_classes = 6,
                             num_enc = wandb_params["num_enc"],
                             num_head = wandb_params["num_head"],
                             embed_dim = wandb_params["embed_dim"],
