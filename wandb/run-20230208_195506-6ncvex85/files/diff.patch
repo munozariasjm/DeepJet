@@ -1,0 +1,23 @@
+diff --git a/eval_analysis/create_analysis.py b/eval_analysis/create_analysis.py
+index fc2d726..b1f844b 100644
+--- a/eval_analysis/create_analysis.py
++++ b/eval_analysis/create_analysis.py
+@@ -37,7 +37,6 @@ if __name__ == "__main__":
+     assert len(files) > 0, "No files found in {}".format(TEST_PRED_PATH)
+     for file_path in tqdm(files):
+         try:
+-            tqdm.write("Processing file {}".format(file_path))
+             evaluator = EvalTool(file_path)
+             ground_truths.append(evaluator.get_true_classes())
+             predictions.append(evaluator.get_pred_classes())
+@@ -68,8 +67,8 @@ if __name__ == "__main__":
+     c_labels = all_labels[evaluator.true_vars.index("isC")]
+ 
+     b_vs_c_tprs, b_vs_c_rejs = metrics.get_curves(b_probas, c_probas, b_labels, c_labels)
+-
+-    df = pd.DataFrame({"b_vs_udsg_tprs": b_vs_udsg_tprs, "b_vs_udsg_rejs": b_vs_udsg_rejs, "b_vs_c_tprs": b_vs_c_tprs, "b_vs_c_rejs": b_vs_c_rejs})
++    df = pd.DataFrame({"preds": all_predicted_cls, "labels": all_ground_truths_cls, "pts": pts})
++    #df = pd.DataFrame({"b_vs_udsg_tprs": b_vs_udsg_tprs, "b_vs_udsg_rejs": b_vs_udsg_rejs, "b_vs_c_tprs": b_vs_c_tprs, "b_vs_c_rejs": b_vs_c_rejs})
+     df.to_pickle(SAVE_PATH)
+     report = classification_report(all_ground_truths_cls, all_predicted_cls, target_names=evaluator.prob_vars, output_dict=True)
+     print(report)

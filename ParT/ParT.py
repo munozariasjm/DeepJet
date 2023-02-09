@@ -6,6 +6,11 @@ import torch
 import torch.nn as nn
 from functools import partial
 import numpy as np
+import torch
+from torch.optim.optimizer import Optimizer
+import itertools as it
+from collections import defaultdict
+from torch.optim.optimizer import Optimizer, required
 
 def node_distance(x):
     inner = -2 * torch.matmul(x.transpose(2, 1), x)
@@ -191,6 +196,191 @@ def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
         tensor.clamp_(min=a, max=b)
         return tensor
 
+class Shampoo(Optimizer):
+    r"""Implements Shampoo Optimizer Algorithm.
+    It has been proposed in `Shampoo: Preconditioned Stochastic Tensor
+    Optimization`__.
+    Arguments:
+        params: iterable of parameters to optimize or dicts defining
+            parameter groups
+        lr: learning rate (default: 1e-3)
+        momentum: momentum factor (default: 0)
+        weight_decay: weight decay (L2 penalty) (default: 0)
+        epsilon: epsilon added to each mat_gbar_j for numerical stability
+            (default: 1e-4)
+        update_freq: update frequency to compute inverse (default: 1)
+    Example:
+        >>> import torch_optimizer as optim
+        >>> optimizer = optim.Shampoo(model.parameters(), lr=0.01)
+        >>> optimizer.zero_grad()
+        >>> loss_fn(model(input), target).backward()
+        >>> optimizer.step()
+    __ https://arxiv.org/abs/1802.09568
+    Note:
+        Reference code: https://github.com/moskomule/shampoo.pytorch
+    """
+
+    def __init__(
+        self,
+        params,
+        lr: float = 1e-1,
+        momentum: float = 0.0,
+        weight_decay: float = 0.0,
+        epsilon: float = 1e-4,
+        update_freq: int = 1,
+        **kwargs,
+    ):
+
+        if lr <= 0.0:
+            raise ValueError('Invalid learning rate: {}'.format(lr))
+        if momentum < 0.0:
+            raise ValueError('Invalid momentum value: {}'.format(momentum))
+        if weight_decay < 0.0:
+            raise ValueError(
+                'Invalid weight_decay value: {}'.format(weight_decay)
+            )
+        if epsilon < 0.0:
+            raise ValueError('Invalid momentum value: {}'.format(momentum))
+        if update_freq < 1:
+            raise ValueError('Invalid momentum value: {}'.format(momentum))
+
+        defaults = dict(
+            lr=lr,
+            momentum=momentum,
+            weight_decay=weight_decay,
+            epsilon=epsilon,
+            update_freq=update_freq,
+        )
+        super(Shampoo, self).__init__(params, defaults)
+
+    def step(self, closure = None) :
+        """Performs a single optimization step.
+        Arguments:
+            closure: A closure that reevaluates the model and returns the loss.
+        """
+        loss = None
+        if closure is not None:
+            loss = closure()
+
+        for group in self.param_groups:
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                grad = p.grad.data
+                order = grad.ndimension()
+                original_size = grad.size()
+                state = self.state[p]
+                momentum = group['momentum']
+                weight_decay = group['weight_decay']
+                if len(state) == 0:
+                    state['step'] = 0
+                    if momentum > 0:
+                        state['momentum_buffer'] = grad.clone()
+                    for dim_id, dim in enumerate(grad.size()):
+                        # precondition matrices
+                        state['precond_{}'.format(dim_id)] = group[
+                            'epsilon'
+                        ] * torch.eye(dim, out=grad.new(dim, dim))
+                        state[
+                            'inv_precond_{dim_id}'.format(dim_id=dim_id)
+                        ] = grad.new(dim, dim).zero_()
+
+                if momentum > 0:
+                    grad.mul_(1 - momentum).add_(
+                        state['momentum_buffer'], alpha=momentum
+                    )
+
+                if weight_decay > 0:
+                    grad.add_(p.data, alpha=group['weight_decay'])
+
+                # See Algorithm 2 for detail
+                for dim_id, dim in enumerate(grad.size()):
+                    precond = state['precond_{}'.format(dim_id)]
+                    inv_precond = state['inv_precond_{}'.format(dim_id)]
+
+                    # mat_{dim_id}(grad)
+                    grad = grad.transpose_(0, dim_id).contiguous()
+                    transposed_size = grad.size()
+                    grad = grad.view(dim, -1)
+
+                    grad_t = grad.t()
+                    precond.add_(grad @ grad_t)
+                    if state['step'] % group['update_freq'] == 0:
+                        inv_precond.copy_(_matrix_power(precond, -1 / order))
+
+                    if dim_id == order - 1:
+                        # finally
+                        grad = grad_t @ inv_precond
+                        # grad: (-1, last_dim)
+                        grad = grad.view(original_size)
+                    else:
+                        # if not final
+                        grad = inv_precond @ grad
+                        # grad (dim, -1)
+                        grad = grad.view(transposed_size)
+
+                state['step'] += 1
+                state['momentum_buffer'] = grad
+                p.data.add_(grad, alpha=-group['lr'])
+
+        return loss
+
+class SwitchNorm1d(nn.Module):
+    def __init__(self, num_features, eps=1e-5, momentum=0.997, using_moving_average=True):
+        super(SwitchNorm1d, self).__init__()
+        self.eps = eps
+        self.momentum = momentum
+        self.using_moving_average = using_moving_average
+        self.weight = nn.Parameter(torch.ones(1, num_features))
+        self.bias = nn.Parameter(torch.zeros(1, num_features))
+        self.mean_weight = nn.Parameter(torch.ones(2))
+        self.var_weight = nn.Parameter(torch.ones(2))
+        self.register_buffer('running_mean', torch.zeros(1, num_features))
+        self.register_buffer('running_var', torch.zeros(1, num_features))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        self.running_mean.zero_()
+        self.running_var.zero_()
+        self.weight.data.fill_(1)
+        self.bias.data.zero_()
+
+    def _check_input_dim(self, input):
+        if input.dim() != 2:
+            raise ValueError('expected 2D input (got {}D input)'
+                             .format(input.dim()))
+
+    def forward(self, x):
+        print(x.shape)
+        self._check_input_dim(x)
+        mean_ln = x.mean(1, keepdim=True)
+        var_ln = x.var(1, keepdim=True)
+
+        if self.training:
+            mean_bn = x.mean(0, keepdim=True)
+            var_bn = x.var(0, keepdim=True)
+            if self.using_moving_average:
+                self.running_mean.mul_(self.momentum)
+                self.running_mean.add_((1 - self.momentum) * mean_bn.data)
+                self.running_var.mul_(self.momentum)
+                self.running_var.add_((1 - self.momentum) * var_bn.data)
+            else:
+                self.running_mean.add_(mean_bn.data)
+                self.running_var.add_(mean_bn.data ** 2 + var_bn.data)
+        else:
+            mean_bn = torch.autograd.Variable(self.running_mean)
+            var_bn = torch.autograd.Variable(self.running_var)
+
+        softmax = nn.Softmax(0)
+        mean_weight = softmax(self.mean_weight)
+        var_weight = softmax(self.var_weight)
+
+        mean = mean_weight[0] * mean_ln + mean_weight[1] * mean_bn
+        var = var_weight[0] * var_ln + var_weight[1] * var_bn
+
+        x = (x - mean) / (var + self.eps).sqrt()
+        return x * self.weight + self.bias
+
 
 class Embed(nn.Module):
     def __init__(self, input_dim, dims, normalize_input=True, activation='gelu'):
@@ -244,6 +434,7 @@ class PairEmbed(nn.Module):
         for dim in dims:
             module_list.extend([
                 nn.BatchNorm1d(input_dim),
+                ###SwitchNorm1d(input_dim),
                 nn.GELU() if activation == 'gelu' else nn.ReLU(),
                 nn.Conv1d(input_dim, dim, 1),
 #                nn.BatchNorm1d(dim),
@@ -308,7 +499,7 @@ class InputConv(nn.Module):
         self.act = nn.GELU()
         self.dropout = nn.Dropout(dropout_rate)
 
-    def forward(self, x, sc, skip = True):
+    def forward(self, x, sc, skip = False):
 
         x2 = self.dropout(self.bn1(self.act(self.lin(x))))
         if skip:
@@ -323,12 +514,13 @@ class LinLayer(nn.Module):
         super(LinLayer, self).__init__(**kwargs)
 
         self.lin = torch.nn.Linear(in_chn, out_chn)
-        self.bn1 = torch.nn.BatchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
-        self.bn2 = torch.nn.BatchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
+        ### self.bn1 = torch.nn.BatchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
+        self.bn1 = SwitchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
+        self.bn2 = SwitchNorm1d(out_chn, eps = 0.001, momentum = 0.1)
         self.act = nn.GELU()
         self.dropout = nn.Dropout(dropout_rate)
 
-    def forward(self, x, sc, skip = True):
+    def forward(self, x, sc, skip = False):
 
         x2 = self.dropout(self.bn1(self.act(self.lin(x))))
         if skip:
@@ -357,17 +549,17 @@ class InputProcess(nn.Module):
     def __init__(self, cpf_dim, npf_dim, vtx_dim, embed_dim, **kwargs):
         super(InputProcess, self).__init__(**kwargs)
 
-        self.cpf_bn0 = torch.nn.BatchNorm1d(cpf_dim, eps = 0.001, momentum = 0.1)
+        self.cpf_bn0 = torch.nn.BatchNorm1d(cpf_dim, eps = 0.000001, momentum = 0.2)
         self.cpf_conv1 = InputConv(cpf_dim,embed_dim)
         self.cpf_conv2 = InputConv(embed_dim,embed_dim*4)
         self.cpf_conv3 = InputConv(embed_dim*4,embed_dim)
 
-        self.npf_bn0 = torch.nn.BatchNorm1d(npf_dim, eps = 0.001, momentum = 0.1)
+        self.npf_bn0 = torch.nn.BatchNorm1d(npf_dim, eps = 0.000001, momentum = 0.2)
         self.npf_conv1 = InputConv(npf_dim,embed_dim)
         self.npf_conv2 = InputConv(embed_dim,embed_dim*4)
         self.npf_conv3 = InputConv(embed_dim*4,embed_dim)
 
-        self.vtx_bn0 = torch.nn.BatchNorm1d(vtx_dim, eps = 0.001, momentum = 0.1)
+        self.vtx_bn0 = torch.nn.BatchNorm1d(vtx_dim, eps = 0.000001, momentum = 0.2)
         self.vtx_conv1 = InputConv(vtx_dim,embed_dim)
         self.vtx_conv2 = InputConv(embed_dim,embed_dim*4)
         self.vtx_conv3 = InputConv(embed_dim*4,embed_dim)
@@ -407,9 +599,9 @@ class DenseClassifier(nn.Module):
 
     def forward(self, x):
 
-        x = self.LinLayer1(x, x, skip = True)
-        #x = self.LinLayer2(x, x, skip = True)
-        #x = self.LinLayer3(x, x, skip = True)
+        x = self.LinLayer1(x, x, skip = False)
+        #x = self.LinLayer2(x, x, skip = False)
+        #x = self.LinLayer3(x, x, skip = False)
 
         return x
 
@@ -420,7 +612,7 @@ class AttentionPooling(nn.Module):
 
         self.ConvLayer = torch.nn.Conv1d(128, 1, kernel_size=1)
         self.Softmax = nn.Softmax(dim=-1)
-        self.bn = torch.nn.BatchNorm1d(128, eps = 0.001, momentum = 0.1)
+        self.bn = SwitchNorm1d(128, eps = 0.001, momentum = 0.1)
         self.act = nn.GELU()
         self.dropout = nn.Dropout(0.1)
 
@@ -723,7 +915,9 @@ class ParticleTransformer(nn.Module):
         self.for_inference = for_inference
         self.num_enc_layers = num_enc
         self.InputProcess = InputProcess(cpf_dim, npf_dim, vtx_dim, embed_dim)
-        self.Linear = nn.Linear(embed_dim, num_classes)
+        self.Linear1 = nn.Linear(embed_dim, num_classes)
+        self.activ = nn.GELU()
+        self.drop = nn.Dropout(0.1)
 
         self.pair_embed = PairEmbed(4, [64,64,64] + [num_head], for_onnx=for_inference)
         self.cls_norm = torch.nn.LayerNorm(embed_dim)
@@ -763,9 +957,127 @@ class ParticleTransformer(nn.Module):
             cls_tokens = self.CLS_EncoderLayer2(cls_tokens, enc, padding_mask)
 
         x = torch.squeeze(cls_tokens, dim = 1)
-        output = self.Linear(self.cls_norm(x))
+        output = self.Linear1(self.cls_norm(x))
 
         if self.for_inference:
             output = torch.softmax(output, dim=1)
+
+        return output
+
+
+class InputProcessTrim(nn.Module):
+
+    def __init__(self, cpf_dim, npf_dim, vtx_dim, embed_dim, **kwargs):
+        super(InputProcessTrim, self).__init__(**kwargs)
+
+        self.cpf_bn0 = torch.nn.BatchNorm1d(cpf_dim, eps = 0.000001, momentum = 0.2)
+        self.cpf_conv1 = InputConv(cpf_dim,embed_dim)
+        self.cpf_conv2 = InputConv(embed_dim,embed_dim*4)
+        self.cpf_conv3 = InputConv(embed_dim*4,embed_dim)
+
+        self.npf_bn0 = torch.nn.BatchNorm1d(npf_dim, eps = 0.000001, momentum = 0.2)
+        self.npf_conv1 = InputConv(npf_dim,embed_dim)
+        self.npf_conv2 = InputConv(embed_dim,embed_dim*4)
+        self.npf_conv3 = InputConv(embed_dim*4,embed_dim)
+
+        self.vtx_bn0 = torch.nn.BatchNorm1d(vtx_dim, eps = 0.000001, momentum = 0.2)
+        self.vtx_conv1 = InputConv(vtx_dim,embed_dim)
+        self.vtx_conv2 = InputConv(embed_dim,embed_dim*4)
+        self.vtx_conv3 = InputConv(embed_dim*4,embed_dim)
+
+#        self.meta_conv = InputConv(8*16,8*16)
+
+    def forward(self, cpf, npf, vtx):
+
+        cpf = self.cpf_bn0(torch.transpose(cpf, 1, 2))
+        cpf = self.cpf_conv1(cpf, cpf, skip = False)
+        cpf = self.cpf_conv2(cpf, cpf, skip = False)
+        cpf = self.cpf_conv3(cpf, cpf, skip = False)
+
+        npf = self.npf_bn0(torch.transpose(npf, 1, 2))
+        npf = self.npf_conv1(npf, npf, skip = False)
+        npf = self.npf_conv2(npf, npf, skip = False)
+        npf = self.npf_conv3(npf, npf, skip = False)
+
+        vtx = self.vtx_bn0(torch.transpose(vtx, 1, 2))
+        vtx = self.vtx_conv1(vtx, vtx, skip = False)
+        vtx = self.vtx_conv2(vtx, vtx, skip = False)
+        vtx = self.vtx_conv3(vtx, vtx, skip = False)
+
+        out = torch.cat((cpf,npf,vtx), dim = 2)
+        out = torch.transpose(out, 1, 2)
+
+        return out
+
+class ParticleTransformerTrim(nn.Module):
+
+    def __init__(self,
+                 num_classes = 6,
+                 num_enc = 8,
+                 num_head = 8,
+                 embed_dim = 128,
+                 cpf_dim = 17,
+                 npf_dim = 8,
+                 vtx_dim = 12,
+                 for_inference = False,
+                 **kwargs):
+        super(ParticleTransformerTrim, self).__init__(**kwargs)
+
+        self.for_inference = for_inference
+        self.num_enc_layers = num_enc
+        self.InputProcess = InputProcessTrim(cpf_dim, npf_dim, vtx_dim, embed_dim)
+        self.Linear1 = nn.Linear(embed_dim, embed_dim//2)
+        self.Linear2 = nn.Linear(embed_dim//2, num_classes)
+        self.activ = nn.GELU()
+        self.drop = nn.Dropout(0.1)
+
+        self.pair_embed = PairEmbed(4, [64,64] + [num_head], for_onnx=for_inference)
+        self.cls_norm = torch.nn.LayerNorm(embed_dim)
+
+        self.EncoderLayer = HF_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.2)
+        self.Encoder = HF_TransformerEncoder(self.EncoderLayer, num_layers=num_enc)
+
+        self.CLS_EncoderLayer1 = CLS_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.2)
+        if(self.num_enc_layers > 3):
+            self.CLS_EncoderLayer2 = CLS_TransformerEncoderLayer(d_model=embed_dim, nhead=num_head, dropout = 0.2)
+
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim), requires_grad=True)
+        trunc_normal_(self.cls_token, std=.02)
+
+        self.last = lambda x: x if not self.for_inference else torch.softmax(x, dim=1)
+
+    def forward(self, inpt):
+
+        cpf, npf, vtx, cpf_4v, npf_4v, vtx_4v = inpt[0], inpt[1], inpt[2], inpt[3], inpt[4], inpt[5]
+        # cpf,  vtx, cpf_4v, vtx_4v = inpt[0], inpt[2], inpt[3],inpt[5]
+        padding_mask = torch.cat((cpf_4v[:,:,:1],npf_4v[:,:,:1],vtx_4v[:,:,:1]), dim = 1)
+        # padding_mask = torch.cat((cpf_4v[:,:,:1], vtx_4v[:,:,:1]), dim = 1)
+        padding_mask =torch.eq(padding_mask[:,:,0], 0.0)
+
+        enc = self.InputProcess(cpf, npf, vtx)
+
+        cpf_4v = build_E_p(cpf_4v)
+        npf_4v = build_E_p(npf_4v)
+        vtx_4v = build_E_p(vtx_4v)
+
+        lorentz_vectors = torch.cat((cpf_4v,npf_4v,vtx_4v), dim = 1)
+
+        #lorentz_vectors = torch.cat((cpf_4v, vtx_4v), dim = 1)
+        v = lorentz_vectors.transpose(1, 2)
+        attn_mask = self.pair_embed(v).view(-1, v.size(-1), v.size(-1))
+
+        enc = self.Encoder(enc, attn_mask, padding_mask)
+
+        cls_tokens = self.cls_token.expand(enc.size(0), 1, -1)
+        cls_tokens = self.CLS_EncoderLayer1(cls_tokens, enc, padding_mask)
+        if(self.num_enc_layers > 3):
+            cls_tokens = self.CLS_EncoderLayer2(cls_tokens, enc, padding_mask)
+
+        x = torch.squeeze(cls_tokens, dim = 1)
+        output = self.Linear1(self.cls_norm(x))
+        output = self.activ(output)
+        output = self.drop(output)
+        output = self.Linear2(output)
+        output = self.last(output)
 
         return output
