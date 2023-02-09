@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from pytorch_Part import training_base
-from ParT import ParticleTransformer, ParticleTransformerTrim
+from ParT import ParticleTransformer, ParticleTransformerTrim, Shampoo
 #from pytorch_deepjet_transformer_v4_corr import DeepJetTransformer, ParticleTransformer
 #from ParT_old import DeepJetTransformer, ParticleTransformer
 from pytorch_ranger import *
@@ -19,7 +19,6 @@ wandb_params = {
 }
 wandb.init(project="StudyParticleTransformer", tags=["CMS"],
            resume=False,
-           entity="munozariasjm",
            config={c: k for c, k in wandb_params.items() if isinstance(k, (int, float, str))},
            )
 
@@ -55,7 +54,9 @@ wandb.watch(model, log='all')
 scaler = torch.cuda.amp.GradScaler()
 
 criterion = cross_entropy_one_hot
-optimizer = Ranger(model.parameters(), lr = 1e-3)
+#optimizer = Ranger(model.parameters(), lr = 1e-3)
+optimizer = Shampoo(model.parameters(), lr = 1e-3)
+
 #scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = [1], gamma = 0.1)
 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones = mil, gamma = lr_rate)
 #scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=14714, T_mult=1, eta_min=5e-6, last_epoch=-1)
